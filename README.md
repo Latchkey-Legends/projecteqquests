@@ -1,6 +1,7 @@
 <br/>
 <p align="center">
   <h3 align="center">ProjectEQ Quest Repository</h3>
+  <h4 align="center">Latchkey Legends</h4>
 
 </p>
 
