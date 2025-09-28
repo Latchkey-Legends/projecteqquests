@@ -13,6 +13,8 @@ local aa_tokens = {
 
 function event_say(e)
     if e.message:find('Hail') then
+        e.other:Message(0, "Current working directory: " .. (os.getenv("PWD") or "unknown"))
+        e.other:Message(0, "Lua package.path: " .. package.path)
         local buy_link = eq.say_link('buy AA Tokens', false, 'buy AA Tokens')
         local balance_link = eq.say_link('AA balance', false, 'AA balance')
         e.other:Message(0, "Ortho says, 'Greetings! I can exchange your AA points for AA tokens. Would you like to [" .. buy_link .. "]? Or I can show you your [" .. balance_link .. "].'" )

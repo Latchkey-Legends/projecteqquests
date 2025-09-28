@@ -1,74 +1,80 @@
+local config_loans = dofile("/home/eqemu/server/quests/global/loan_config.lua")
+
 -- Loan status check on zone entry (uses Zork Broker loan buckets)
 -- Configurable penalties
-local SICKNESS_SPELL_ID = 5249 -- Change this to your new sickness spell as needed
-local SUPER_MOB_NPC_ID = 58015  -- Replace with your super mob NPC ID
-local SUPER_MOB_CHANCE = .25 -- 25% chance to spawn super mob if WAY overdue
-local BASE_LOAN_DURATION = 60 -- Loan duration in seconds (1 minute), must match 500002.lua
+local SICKNESS_SPELL_ID = config_loans.SICKNESS_SPELL_ID
+local SUPER_MOB_NPC_ID = config_loans.SUPER_MOB_NPC_ID
+local SUPER_MOB_CHANCE = config_loans.SUPER_MOB_CHANCE
+local BASE_LOAN_DURATION_MINUTES = config_loans.BASE_LOAN_DURATION_MINUTES
+
+local function get_loan_bucket_keys(client_id)
+    return {
+        loan = string.format(config_loans.BUCKET_KEYS.loan, client_id),
+        duration = string.format(config_loans.BUCKET_KEYS.duration, client_id),
+        extensions = string.format(config_loans.BUCKET_KEYS.extensions, client_id),
+        interest = string.format(config_loans.BUCKET_KEYS.interest, client_id)
+    }
+end
 
 local function check_loan_status_on_zone(client)
+	-- DEBUG: Confirm function is running and show loan amount
+	client:Message(MT.Yellow, "[DEBUG] check_loan_status_on_zone called. Amount: " .. tostring(eq.get_data(tostring(client:CharacterID()) .. "_AC_loan")))
 	-- These must match the bucket keys in 500002.lua
 	local client_id = tostring(client:CharacterID())
-	local loan_key = client_id .. "_AC_loan"
-	local duration_key = client_id .. "_AC_loan_duration"
-	local extensions_key = client_id .. "_AC_loan_extensions"
-	local interest_key = client_id .. "_AC_loan_interest"
+	local keys = get_loan_bucket_keys(client_id)
 
-	local amount = tonumber(eq.get_data(loan_key)) or 0
-	local duration = tonumber(eq.get_data(duration_key)) or 0
-	local extensions = tonumber(eq.get_data(extensions_key)) or 0
-	local interest = tonumber(eq.get_data(interest_key)) or 0
+	local amount = tonumber(eq.get_data(keys.loan)) or 0
+	local duration = tonumber(eq.get_data(keys.duration)) or 0
+	local extensions = tonumber(eq.get_data(keys.extensions)) or 0
+	local interest = tonumber(eq.get_data(keys.interest)) or 0
 
 	if amount > 0 then
 		local now = os.time()
-		local loan_duration = duration - (duration - (BASE_LOAN_DURATION or 360)) -- fallback to config value if not imported
-		if loan_duration <= 0 then loan_duration = BASE_LOAN_DURATION or 360 end
+		local loan_duration = BASE_LOAN_DURATION_MINUTES * 60 -- convert minutes to seconds
 		local time_left = duration - now
 		local overdue_periods = 0
 		if now > duration then
 			overdue_periods = math.floor((now - duration) / loan_duration)
 		end
-		local currency_name = eq.get_item_name(500000) -- Must match currency_item_id in 500002.lua
+		local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
 		local escalated_interest = interest
 		if time_left <= 0 then
 			-- Escalate interest based on lateness
 			if overdue_periods >= 10 then
 				escalated_interest = interest + 0.10
 			else
-				escalated_interest = interest + (overdue_periods * 0.025)
+				escalated_interest = interest + (overdue_periods * config_loans.EXTENSION_INTEREST_RATE)
 			end
 			-- Persist new interest
-			eq.set_data(interest_key, tostring(escalated_interest))
+			eq.set_data(keys.interest, tostring(escalated_interest))
 			local total_due = math.ceil(amount * (1 + escalated_interest))
 			client:Message(MT.Red, "[LOAN OVERDUE] Your loan of " .. amount .. " " .. currency_name .. " is OVERDUE! You owe a total of " .. total_due .. " (including interest). Please pay back your loan immediately or face consequences.")
-			
 			-- Cast configurable sickness spell
 			client:CastSpell(SICKNESS_SPELL_ID, client:GetID())
-
-			-- Milestone penalties
-			if overdue_periods >= 2 then
-				client:Message(MT.Red, "Your debt is seriously overdue! 2x the loan duration! Additional penalties have been applied.")
-				-- Add penalty logic here
-
-			end
-			if overdue_periods >= 5 then
-				client:Message(MT.Red, "Your debt is EXTREMELY overdue! 5x the loan duration! Severe penalties may occur.")
-				-- Add penalty logic here
-			end
+			-- Show only the highest milestone message
 			if overdue_periods >= 10 then
-				client:Message(MT.Red, "Your debt is catastrophically overdue! 10x the loan duration! Beware!")
+				client:Message(MT.Red, "Your debt is catastrophically overdue! " .. overdue_periods .. "x the loan duration! Beware!")
 				-- Faction penalty: Lenders Guild (ID 500000)
-				local FACTION_ID = 500000
+				local FACTION_ID = config_loans.FACTION_ID
 				local FACTION_HIT = -1000 -- Large enough to make KOS
 				client:Message(MT.Red, "Your standing with the Lenders Guild has plummeted!")
 				client:Faction(FACTION_ID, FACTION_HIT)
 				-- Global shame message
-				eq.world_emote(0, "Zork says, " .. client:GetName() .. " is a scoundrel! I loaned him " .. amount .. " " .. currency_name .. " and he has not paid it back. Time to summon my minions!")
+				eq.world_emote(14, "Zork says, " .. client:GetName() .. " is a scoundrel! I loaned him " .. amount .. " " .. currency_name .. " and he has not paid it back. Time to summon my minions!")
 				-- Random chance to spawn super mob
 				if math.random() < SUPER_MOB_CHANCE then
 					local x, y, z = client:GetX(), client:GetY(), client:GetZ()
 					eq.spawn2(SUPER_MOB_NPC_ID, 0, 0, x + 2, y + 2, z, 0)
-					client:Message(MT.Red, "A debt collector has arrived to collect what you owe!")
+					client:Message(MT.Yellow, "A debt collector has arrived to collect what you owe!")
+				else
+					client:Message(MT.Yellow, "Zork's Minions are close on your trail!")
 				end
+			elseif overdue_periods >= 5 then
+				client:Message(MT.Red, "Your debt is EXTREMELY overdue! 5x the loan duration! Severe penalties may occur.")
+				-- Add penalty logic here
+			elseif overdue_periods >= 2 then
+				client:Message(MT.Red, "Your debt is seriously overdue! 2x the loan duration! Additional penalties have been applied.")
+				-- Add penalty logic here
 			end
 		else
 			-- Loan active: show reminder with time remaining
@@ -84,7 +90,7 @@ end
 
 -- Event: Player enters a zone
 function event_enter_zone(e)
-	e.self:Message(MT.Yellow, "Welcome to LUA.")
+	--e.self:Message(MT.Yellow, "Welcome to LUA.")
 	check_loan_status_on_zone(e.self)
 end
 -- items: 67704, 72091, 62621, 62622, 62844, 62827, 62828, 62836, 62883, 62876, 47100, 62878, 62879

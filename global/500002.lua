@@ -7,6 +7,7 @@ function event_say(e)
     local item_link = eq.item_link(currency_item_id)
     local client_id = tostring(e.other:CharacterID())
     if e.message:find('Hail') then
+        local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
         local redeem_link = eq.say_link('redeem', false, 'Redeem')
         local balance_link = eq.say_link('show balance', false, 'Balance')
         local loan_link = eq.say_link('loan', false, 'Loan')
@@ -22,6 +23,7 @@ function event_say(e)
     elseif e.message:find('show balance') then
         show_balance(e)
     elseif e.message:find('information') then
+        local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
         e.other:Message(0, "You earn " .. item_link .. " by defeating monsters throughout Norrath. The amount you receive is based on the difficulty of the monsters. You can accumulate " .. currency_name .. " in your inventory as items, which can be redeemed with me to add them to your alternate currency tab. Happy hunting!")
     elseif e.message:find('payback_loan') then
         process_payback(e, client_id)
@@ -48,16 +50,17 @@ end
     ZORK BROKER QUEST SCRIPT
 ====================================
 ]]--
--- CONFIGURATION
-currency_id = 40 -- Mark of Resilience alt currency ID
-currency_item_id = 500000 -- Mark of Resilience item ID
-currency_name = "Mark of Resilience"
-BASE_LOAN_DURATION = 24 * 3600 -- 24 hours in seconds
-BASE_INTEREST_RATE = 0.05 -- 5% base interest
-EXTENSION_INTEREST_RATE = 0.025 -- 2.5% per extension
-MAX_EXTENSIONS = 3
-LOAN_OPTIONS = {100, 250, 500, 1000}
-SICKNESS_SPELL_ID = 500010 -- Example spell ID for penalty
+-- CONFIGURATION (now loaded from config_loans.lua)
+local config_loans = dofile("/home/eqemu/server/quests/global/loan_config.lua")
+local currency_id = config_loans.CURRENCY_ID
+local currency_item_id = config_loans.CURRENCY_ITEM_ID
+local BASE_LOAN_DURATION_MINUTES = config_loans.BASE_LOAN_DURATION_MINUTES
+local BASE_INTEREST_RATE = config_loans.BASE_INTEREST_RATE
+local EXTENSION_INTEREST_RATE = config_loans.EXTENSION_INTEREST_RATE
+local MAX_EXTENSIONS = config_loans.MAX_EXTENSIONS
+local LOAN_OPTIONS = config_loans.LOAN_OPTIONS
+local SICKNESS_SPELL_ID = config_loans.SICKNESS_SPELL_ID
+local FACTION_ID = config_loans.FACTION_ID
 
 -- Loads the current loan state for a client from data buckets
 -- @param client_id: string (player's CharacterID)
@@ -75,10 +78,10 @@ end
 -- Utility: Get loan bucket keys for a client
 local function get_loan_bucket_keys(client_id)
     return {
-        loan = "loan_" .. client_id,
-        duration = "loan_duration_" .. client_id,
-        extensions = "loan_extensions_" .. client_id,
-        interest = "loan_interest_" .. client_id
+        loan = string.format(config_loans.BUCKET_KEYS.loan, client_id),
+        duration = string.format(config_loans.BUCKET_KEYS.duration, client_id),
+        extensions = string.format(config_loans.BUCKET_KEYS.extensions, client_id),
+        interest = string.format(config_loans.BUCKET_KEYS.interest, client_id)
     }
 end
 
@@ -129,6 +132,7 @@ local function show_loan_menu(e, client_id)
     local state = get_loan_state(client_id)
     local FACTION_ID = 500000
     local faction_level = e.other:GetCharacterFactionLevel(FACTION_ID)
+    local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
     if state.amount > 0 then
         local payback_link = eq.say_link('payback_loan', false, 'Payback Loan')
         local extend_link = eq.say_link('extend_loan', false, 'Extend Loan')
@@ -136,11 +140,10 @@ local function show_loan_menu(e, client_id)
         local total_due = math.ceil(state.amount * (1 + state.interest))
         local now = os.time()
         local overdue_msg = ""
+        local loan_duration = BASE_LOAN_DURATION_MINUTES * 60
         if now > state.duration then
             local overdue_seconds = now - state.duration
-            local overdue_periods = 0
-            local loan_duration = BASE_LOAN_DURATION or 360
-            overdue_periods = math.floor(overdue_seconds / loan_duration)
+            local overdue_periods = math.floor(overdue_seconds / loan_duration)
             local overdue_str = string.format("%02dh %02dm %02ds", math.floor(overdue_seconds / 3600), math.floor((overdue_seconds % 3600) / 60), overdue_seconds % 60)
             overdue_msg = "Your loan is OVERDUE by " .. overdue_str .. " (" .. overdue_periods .. " full periods past due)."
         end
@@ -163,7 +166,7 @@ local function show_loan_menu(e, client_id)
             end
         end
     else
-        local hours = math.floor(BASE_LOAN_DURATION / 3600)
+        local hours = math.floor(BASE_LOAN_DURATION_MINUTES / 60)
         e.other:Message(0, "Zork chuckles. Very well my friend. Here are my terms. You may borrow " .. currency_name .. " for " .. hours .. " hours at a base interest rate of " .. string.format("%.2f%%%%", BASE_INTEREST_RATE * 100) .. ". If you need more time, you may extend your loan up to " .. MAX_EXTENSIONS .. " times, with interest increasing by " .. string.format("%.2f%%%%", EXTENSION_INTEREST_RATE * 100) .. " for each extension. You must repay the full amount plus interest before the deadline, or pay partially and the remaining balance will continue to accrue interest. Speak to me again about a [loan] and I will give you details about our current loan. Failure WILL have dire [consequences]. And I won't loan to you again for a good while!")
         e.other:Message(0, "So, how much do you want?")
         for _, amount in ipairs(LOAN_OPTIONS) do
@@ -182,17 +185,18 @@ end
 -- @param client_id: string
 -- @param amount: number
 local function process_loan(e, client_id, amount)
+    local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
     local state = get_loan_state(client_id)
     if state.amount > 0 then
         e.other:Message(0, "You already have an outstanding loan.")
         return
     end
     -- Issue new loan
-    local duration = os.time() + BASE_LOAN_DURATION
+    local duration = os.time() + BASE_LOAN_DURATION_MINUTES * 60
     local interest = BASE_INTEREST_RATE
     set_loan_state(client_id, amount, duration, 0, interest)
     e.other:SummonItem(currency_item_id, amount)
-    e.other:Message(0, "You have borrowed " .. amount .. " " .. currency_name .. ". You have " .. math.floor(BASE_LOAN_DURATION / 3600) .. " hours to repay at " .. string.format("%.2f%%", interest * 100) .. " interest.")
+    e.other:Message(0, "You have borrowed " .. amount .. " " .. currency_name .. ". You have " .. math.floor(BASE_LOAN_DURATION_MINUTES / 60) .. " hours to repay at " .. string.format("%.2f%%", interest * 100) .. " interest.")
 end
 
 -- Processes loan payback for the client
@@ -200,6 +204,7 @@ end
 -- @param e: event object
 -- @param client_id: string
 function process_payback(e, client_id)
+    local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
     local state = get_loan_state(client_id)
     local FACTION_ID = 500000
     if state.amount == 0 then
@@ -285,7 +290,7 @@ function event_say(e)
     local client_id = tostring(e.other:CharacterID())
     local FACTION_ID = 500000
     local faction_level = e.other:GetCharacterFactionLevel(FACTION_ID)
-    e.other:Message(0, "Your current faction with the Lenders Guild is: " .. tostring(faction_level))
+    e.other:Message(0, "DEBUG: Your current faction with the Lenders Guild is: " .. tostring(faction_level))
     if e.message:find('Hail') then
         local state = get_loan_state(client_id)
         local payback_link = eq.say_link('payback_loan', false, 'Payback Loan')
@@ -298,6 +303,7 @@ function event_say(e)
             -- e.other:Message(0, "Click here to regain favor: " .. regain_link)
             return
         end
+        local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
         local redeem_link = eq.say_link('redeem', false, 'Redeem')
         local balance_link = eq.say_link('show balance', false, 'Balance')
         local loan_link = eq.say_link('loan', false, 'Loan')
@@ -312,6 +318,7 @@ function event_say(e)
     elseif e.message:find('show balance') then
         show_balance(e)
     elseif e.message:find('information') then
+        local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
         e.other:Message(0, "You earn " .. item_link .. " by defeating monsters throughout Norrath. The amount you receive is based on the difficulty of the monsters. You can accumulate " .. currency_name .. " in your inventory as items, which can be redeemed with me to add them to your alternate currency tab. Happy hunting!")
     elseif e.message:find('payback_loan') then
         process_payback(e, client_id)
@@ -335,6 +342,7 @@ end
 -- Displays the player's current alt currency balance
 -- @param e: event object
 function show_balance(e)
+    local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
     local tab_count = e.other:GetAlternateCurrencyValue(currency_id)
     e.other:Message(0, "You currently have " .. tab_count .. " " .. currency_name .. " in your alt currency tab.")
 end
@@ -342,6 +350,7 @@ end
 -- Redeems all currency items in inventory and adds to alt currency tab
 -- @param e: event object
 function redeem_inventory(e)
+    local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
     local tab_count = e.other:GetAlternateCurrencyValue(currency_id)
     local inventory_count = e.other:CountItem(currency_item_id)
     if inventory_count > 0 then
