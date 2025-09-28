@@ -1,81 +1,96 @@
+-- Loan status check on zone entry (uses Zork Broker loan buckets)
+-- Configurable penalties
+local SICKNESS_SPELL_ID = 5249 -- Change this to your new sickness spell as needed
+local SUPER_MOB_NPC_ID = 58015  -- Replace with your super mob NPC ID
+local SUPER_MOB_CHANCE = .25 -- 25% chance to spawn super mob if WAY overdue
+local BASE_LOAN_DURATION = 60 -- Loan duration in seconds (1 minute), must match 500002.lua
+
+local function check_loan_status_on_zone(client)
+	-- These must match the bucket keys in 500002.lua
+	local client_id = tostring(client:CharacterID())
+	local loan_key = client_id .. "_AC_loan"
+	local duration_key = client_id .. "_AC_loan_duration"
+	local extensions_key = client_id .. "_AC_loan_extensions"
+	local interest_key = client_id .. "_AC_loan_interest"
+
+	local amount = tonumber(eq.get_data(loan_key)) or 0
+	local duration = tonumber(eq.get_data(duration_key)) or 0
+	local extensions = tonumber(eq.get_data(extensions_key)) or 0
+	local interest = tonumber(eq.get_data(interest_key)) or 0
+
+	if amount > 0 then
+		local now = os.time()
+		local loan_duration = duration - (duration - (BASE_LOAN_DURATION or 360)) -- fallback to config value if not imported
+		if loan_duration <= 0 then loan_duration = BASE_LOAN_DURATION or 360 end
+		local time_left = duration - now
+		local overdue_periods = 0
+		if now > duration then
+			overdue_periods = math.floor((now - duration) / loan_duration)
+		end
+		local currency_name = eq.get_item_name(500000) -- Must match currency_item_id in 500002.lua
+		local escalated_interest = interest
+		if time_left <= 0 then
+			-- Escalate interest based on lateness
+			if overdue_periods >= 10 then
+				escalated_interest = interest + 0.10
+			else
+				escalated_interest = interest + (overdue_periods * 0.025)
+			end
+			-- Persist new interest
+			eq.set_data(interest_key, tostring(escalated_interest))
+			local total_due = math.ceil(amount * (1 + escalated_interest))
+			client:Message(MT.Red, "[LOAN OVERDUE] Your loan of " .. amount .. " " .. currency_name .. " is OVERDUE! You owe a total of " .. total_due .. " (including interest). Please pay back your loan immediately or face consequences.")
+			
+			-- Cast configurable sickness spell
+			client:CastSpell(SICKNESS_SPELL_ID, client:GetID())
+
+			-- Milestone penalties
+			if overdue_periods >= 2 then
+				client:Message(MT.Red, "Your debt is seriously overdue! 2x the loan duration! Additional penalties have been applied.")
+				-- Add penalty logic here
+
+			end
+			if overdue_periods >= 5 then
+				client:Message(MT.Red, "Your debt is EXTREMELY overdue! 5x the loan duration! Severe penalties may occur.")
+				-- Add penalty logic here
+			end
+			if overdue_periods >= 10 then
+				client:Message(MT.Red, "Your debt is catastrophically overdue! 10x the loan duration! Beware!")
+				-- Faction penalty: Lenders Guild (ID 500000)
+				local FACTION_ID = 500000
+				local FACTION_HIT = -1000 -- Large enough to make KOS
+				client:Message(MT.Red, "Your standing with the Lenders Guild has plummeted!")
+				client:Faction(FACTION_ID, FACTION_HIT)
+				-- Global shame message
+				eq.world_emote(0, "Zork says, " .. client:GetName() .. " is a scoundrel! I loaned him " .. amount .. " " .. currency_name .. " and he has not paid it back. Time to summon my minions!")
+				-- Random chance to spawn super mob
+				if math.random() < SUPER_MOB_CHANCE then
+					local x, y, z = client:GetX(), client:GetY(), client:GetZ()
+					eq.spawn2(SUPER_MOB_NPC_ID, 0, 0, x + 2, y + 2, z, 0)
+					client:Message(MT.Red, "A debt collector has arrived to collect what you owe!")
+				end
+			end
+		else
+			-- Loan active: show reminder with time remaining
+			local total_due = math.ceil(amount * (1 + interest))
+			local hours = math.floor(time_left / 3600)
+			local minutes = math.floor((time_left % 3600) / 60)
+			local seconds = time_left % 60
+			local time_str = string.format("%02dh %02dm %02ds", hours, minutes, seconds)
+			client:Message(MT.Yellow, "[LOAN REMINDER] You have an active loan of " .. amount .. " " .. currency_name .. ". Time remaining: " .. time_str .. ". Total owed (with interest): " .. total_due .. " " .. currency_name)
+		end
+	end
+end
+
+-- Event: Player enters a zone
+function event_enter_zone(e)
+	e.self:Message(MT.Yellow, "Welcome to LUA.")
+	check_loan_status_on_zone(e.self)
+end
 -- items: 67704, 72091, 62621, 62622, 62844, 62827, 62828, 62836, 62883, 62876, 47100, 62878, 62879
 
 local don = require("dragons_of_norrath")
 
-function event_enter_zone(e)
-	mysterious_voice(e)
-
-	if eq.is_lost_dungeons_of_norrath_enabled() and eq.get_zone_short_name() == "lavastorm" and e.self:GetGMStatus() >= 80 then 
-		e.self:Message(MT.DimGray, "There are GM commands available for Dragons of Norrath, use " .. eq.say_link("#don") .. " to get started")
-	end
-end
-
-function mysterious_voice(e)
-	if not eq.is_lost_dungeons_of_norrath_enabled() then
-		return
-	end
-	local qglobals = eq.get_qglobals(e.self);
-	if e.self:GetLevel() < 15 then
-		return
-	end
-	if qglobals.Wayfarer ~= nil then
-		return
-	end
-	local zone_id = eq.get_zone_id();
-
-	local voice_zones = {
-		Zone.qeynos,
-		Zone.qeynos2,
-		Zone.qrg,
-		Zone.freportn,
-		Zone.freportw,
-		Zone.freporte,
-		Zone.rivervale,
-		Zone.ecommons,
-		Zone.erudnint,
-		Zone.erudnext,
-		Zone.halas,
-		Zone.everfrost,
-		Zone.nro,
-		Zone.sro,
-		Zone.neriaka,
-		Zone.neriakb,
-		Zone.neriakc,
-		Zone.qcat,
-		Zone.oggok,
-		Zone.grobb,
-		Zone.gfaydark,
-		Zone.akanon,
-		Zone.kaladima,
-		Zone.felwithea,
-		Zone.felwitheb,
-		Zone.kaladimb,
-		Zone.butcher,
-		Zone.paineel,
-		Zone.cabwest,
-		Zone.cabeast,
-		Zone.sharvahl,
-		Zone.poknowledge,
-		Zone.freeporteast,
-		Zone.freeportwest,
-		Zone.northro,
-		Zone.southro,
-		Zone.commonlands
-	};
-
-	for _, zone in pairs(voice_zones) do
-		if zone == zone_id then
-			e.self:Message(MT.Yellow,
-			"A mysterious voice whispers to you, \'If you can feel me in your thoughts, know this -- "
-			.. "something is changing in the world and I reckon you should be a part of it. I do not know much, but I do know "
-			.. "that in every home city and the wilds there are agents of an organization called the Wayfarers Brotherhood. They "
-			.. "are looking for recruits . . . If you can hear this message, you are one of the chosen. Rush to your home city, or "
-			.. "search the West Karanas and Rathe Mountains for a contact if you have been exiled from your home for your deeds, "
-			.. "and find out more. Adventure awaits you, my friend.\'");
-			return
-		end
-	end
-end
 
 function event_combine_validate(e)
 	-- e.validate_type values = { "check_zone", "check_tradeskill" }
@@ -255,9 +270,7 @@ function event_combine_success(e)
 	end
 end
 
-function event_command(e)
-	return eq.DispatchCommands(e);
-end
+
 
 --[[ the main key is the ID of the AA
 --   the first set is the age required in seconds
@@ -285,6 +298,8 @@ vet_aa = {
 function event_connect(e)
 	grant_veteran_aa(e)
 	don.fix_invalid_faction_state(e.self)
+	-- Initialize level tracking for new connections
+	--level_tracking.init_tracking(e.self)
 end
 
 function grant_veteran_aa(e)
@@ -382,6 +397,9 @@ end
 ]]--
 
 function event_level_up(e)
+  -- Track level progression for empirical data
+	level_tracking.on_level_up(e.self, e.self:GetLevel())
+  
   local free_skills =  {0,1,2,3,4,5,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,28,29,30,31,32,33,34,36,37,38,39,41,42,43,44,45,46,47,49,51,52,54,67,70,71,72,73,74,76};
 
   for k,v in ipairs(free_skills) do
