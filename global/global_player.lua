@@ -1,3 +1,21 @@
+--[[
+================================================================================
+ EQEmu Loan System - Global Player Logic
+--------------------------------------------------------------------------------
+ This script enforces loan penalties and consequences on zone entry for players.
+ Features:
+   - Checks loan status and overdue milestones
+   - Applies interest escalation, sickness spell, and faction penalties
+   - Triggers global emotes and supermob spawns for severe overdue cases
+   - Integrates with Zork Broker loan buckets and config
+   - Designed for maintainability and extensibility
+--------------------------------------------------------------------------------
+ Key Functions:
+   - check_loan_status_on_zone: Main zone entry loan check
+   - get_loan_bucket_keys: Utility for bucket key formatting
+   - Penalty logic for overdue loans, including faction and mob consequences
+================================================================================
+]]--
 local config_loans = dofile("/home/eqemu/server/quests/global/loan_config.lua")
 
 -- Loan status check on zone entry (uses Zork Broker loan buckets)
@@ -93,6 +111,8 @@ function event_enter_zone(e)
 	--e.self:Message(MT.Yellow, "Welcome to LUA.")
 	check_loan_status_on_zone(e.self)
 end
+
+-- [[ END LOAN SYSTEM ================================================================================= ]]--
 -- items: 67704, 72091, 62621, 62622, 62844, 62827, 62828, 62836, 62883, 62876, 47100, 62878, 62879
 
 local don = require("dragons_of_norrath")

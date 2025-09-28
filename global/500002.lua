@@ -1,7 +1,26 @@
 --[[
-====================================
-    ZORK BROKER QUEST SCRIPT
-====================================
+================================================================================
+ EQEmu Loan System - Zork the Broker
+--------------------------------------------------------------------------------
+ Implements a modular alternate currency loan system for EQEmu servers.
+ Features:
+   - Dynamic loan configuration via loan_config.lua
+   - Persistent loan state using data buckets
+   - Interest, extensions, overdue penalties, and faction consequences
+   - Repayment, extension, and favor regain logic
+   - Integration with alternate currency and item redemption
+   - Robust messaging and user feedback
+   - Designed for maintainability and extensibility
+--------------------------------------------------------------------------------
+ Key Functions:
+   - event_say: Main NPC chat handler
+   - process_loan: Issue new loan
+   - process_payback: Handle loan repayment
+   - process_extend: Extend loan duration
+   - show_loan_menu: Display loan status/options
+   - regain_favor: Restore faction to neutral
+   - Utility functions for bucket keys and state management
+================================================================================
 ]]--
 -- CONFIGURATION (now loaded from config_loans.lua)
 local config_loans = dofile("/home/eqemu/server/quests/global/loan_config.lua")
@@ -325,3 +344,5 @@ function redeem_inventory(e)
         e.other:Message(0, "You have no " .. currency_name .. " in your inventory to redeem. Your total remains " .. tab_count .. ".")
     end
 end
+-- [[ END LOAN SYSTEM ================================================================================= ]]--
+
