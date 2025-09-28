@@ -1,52 +1,5 @@
 --[[
 ====================================
- ZORK BROKER QUEST SCRIPT
-====================================
-
-function event_say(e)
-    local item_link = eq.item_link(currency_item_id)
-    local client_id = tostring(e.other:CharacterID())
-    if e.message:find('Hail') then
-        local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
-        local redeem_link = eq.say_link('redeem', false, 'Redeem')
-        local balance_link = eq.say_link('show balance', false, 'Balance')
-        local loan_link = eq.say_link('loan', false, 'Loan')
-        local state = get_loan_state(client_id)
-        e.other:Message(0, "Zork says, Zork! I am the Master of Resilience. The broker of this worlds alternate currency system. Would you like some " .. eq.say_link('information', false, 'information') .. " about the currency system? Or you can say " .. redeem_link .. " to change all currency in your inventory to " .. item_link .. ". Or I can show you your " .. balance_link .. ".")
-        if state.amount > 0 then
-            show_loan_menu(e, client_id)
-        else
-            e.other:Message(0, "Psst. I can " .. loan_link .." you some " .. currency_name .. ".")
-        end
-    elseif e.message:find('redeem') then
-        redeem_inventory(e)
-    elseif e.message:find('show balance') then
-        show_balance(e)
-    elseif e.message:find('information') then
-        local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
-        e.other:Message(0, "You earn " .. item_link .. " by defeating monsters throughout Norrath. The amount you receive is based on the difficulty of the monsters. You can accumulate " .. currency_name .. " in your inventory as items, which can be redeemed with me to add them to your alternate currency tab. Happy hunting!")
-    elseif e.message:find('payback_loan') then
-        process_payback(e, client_id)
-    elseif e.message:find('extend_loan') then
-        process_extend(e, client_id)
-    else
-        -- Check for loan amount selection first, so it doesn't fall through to menu
-        for _, amount in ipairs(LOAN_OPTIONS) do
-            if e.message:find('loan_' .. amount) then
-                process_loan(e, client_id, amount)
-                return -- Do not show menu again
-            end
-        end
-        -- If not a specific loan amount, check for 'loan' to show menu
-        if e.message:find('loan') then
-            show_loan_menu(e, client_id)
-        end
-    end
-end
-]]--
-
---[[
-====================================
     ZORK BROKER QUEST SCRIPT
 ====================================
 ]]--
@@ -196,7 +149,7 @@ local function process_loan(e, client_id, amount)
     local interest = BASE_INTEREST_RATE
     set_loan_state(client_id, amount, duration, 0, interest)
     e.other:SummonItem(currency_item_id, amount)
-    e.other:Message(0, "You have borrowed " .. amount .. " " .. currency_name .. ". You have " .. math.floor(BASE_LOAN_DURATION_MINUTES / 60) .. " hours to repay at " .. string.format("%.2f%%", interest * 100) .. " interest.")
+    e.other:Message(0, "You have borrowed " .. amount .. " " .. currency_name .. ". You have " .. math.floor(BASE_LOAN_DURATION_MINUTES / 60) .. " hours to repay at " .. string.format("%.2f%%%%", interest * 100) .. " interest.")
 end
 
 -- Processes loan payback for the client
@@ -227,11 +180,9 @@ function process_payback(e, client_id)
             e.other:Message(0, "You have paid off your loan in full. Thank you!")
             -- Remove sickness spell buff
             e.other:BuffFadeBySpellID(SICKNESS_SPELL_ID)
-            -- If faction is at or below -500, set to exactly -500
-            if e.other:GetCharacterFactionLevel(FACTION_ID) <= -500 then
-                local current = e.other:GetCharacterFactionLevel(FACTION_ID)
-                e.other:Faction(FACTION_ID, -500 - current)
-            end
+            -- Set faction to exactly -500 when loan is repaid
+            local delta = -500 - e.other:GetCharacterFactionLevel(FACTION_ID)
+            e.other:Faction(FACTION_ID, delta)
         else
             -- Keep same interest and duration
             set_loan_state(client_id, new_amount, state.duration, state.extensions, state.interest)
@@ -245,11 +196,9 @@ function process_payback(e, client_id)
         e.other:Message(0, "Your loan of " .. state.amount .. " " .. currency_name .. " has been paid back. Total paid: " .. total_due .. " (including interest). Thank you!")
         -- Remove sickness spell buff
         e.other:BuffFadeBySpellID(SICKNESS_SPELL_ID)
-        -- If faction is at or below -500, set to exactly -500
-        if e.other:GetCharacterFactionLevel(FACTION_ID) <= -500 then
-            local current = e.other:GetCharacterFactionLevel(FACTION_ID)
-            e.other:Faction(FACTION_ID, -500 - current)
-        end
+    -- Set faction to exactly -500 when loan is repaid
+    local delta = -500 - e.other:GetCharacterFactionLevel(FACTION_ID)
+    e.other:Faction(FACTION_ID, delta)
     end
 end
 
@@ -269,9 +218,12 @@ local function process_extend(e, client_id)
     end
     local new_extensions = state.extensions + 1
     local new_interest = BASE_INTEREST_RATE * (new_extensions + 1)
-    local new_duration = os.time() + BASE_LOAN_DURATION
+    local new_duration = os.time() + BASE_LOAN_DURATION_MINUTES * 60
     set_loan_state(client_id, state.amount, new_duration, new_extensions, new_interest)
-    e.other:Message(0, "Your loan has been extended. New interest rate: " .. string.format("%.2f%%", tonumber(new_interest) * 100) .. ". You now have 24 more hours to pay back your loan.")
+    -- Set faction to exactly 0 when extending the loan
+    local delta = 0 - e.other:GetCharacterFactionLevel(FACTION_ID)
+    e.other:Faction(FACTION_ID, delta)
+    e.other:Message(0, "Your loan has been extended. New interest rate: " .. string.format("%.2f%%", tonumber(new_interest) * 100) .. ". You now have 24 more hours to pay back your loan. Your standing with the Lenders Guild is now neutral.")
 end
 
 
@@ -297,10 +249,6 @@ function event_say(e)
         local regain_link = eq.say_link('regain_favor', false, 'Regain Favor')
         if faction_level <= -500 then
             e.other:Message(0, "You expect me to do business with you? No way. You can " .. payback_link .. ", or attempt to " .. regain_link .. " with the Lenders Guild.")
-            -- if state.amount > 0 then
-            --     e.other:Message(0, "Click here to pay back your loan: " .. payback_link)
-            -- end
-            -- e.other:Message(0, "Click here to regain favor: " .. regain_link)
             return
         end
         local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
@@ -324,6 +272,18 @@ function event_say(e)
         process_payback(e, client_id)
     elseif e.message:find('extend_loan') then
         process_extend(e, client_id)
+    elseif e.message:find('regain_favor') then
+        e.other:Message(0, "To regain favor with the Lenders Guild, you must [pay] me 300 " .. eq.get_item_name(config_loans.CURRENCY_ITEM_ID) .. ".")
+    elseif e.message:find('pay') then
+        local currency_name = eq.get_item_name(config_loans.CURRENCY_ITEM_ID)
+        local tab_count = e.other:GetAlternateCurrencyValue(config_loans.CURRENCY_ID)
+        if tab_count >= 300 then
+            e.other:SetAlternateCurrencyValue(config_loans.CURRENCY_ID, tab_count - 300)
+            e.other:Message(0, "You have paid 300 " .. currency_name .. " to regain favor with the Lenders Guild.")
+            e.other:Faction(config_loans.FACTION_ID, 500)
+        else
+            e.other:Message(0, "You do not have enough " .. currency_name .. " to pay.")
+        end
     else
         -- Check for loan amount selection first, so it doesn't fall through to menu
         for _, amount in ipairs(LOAN_OPTIONS) do

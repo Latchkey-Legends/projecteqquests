@@ -18,7 +18,7 @@ end
 
 local function check_loan_status_on_zone(client)
 	-- DEBUG: Confirm function is running and show loan amount
-	client:Message(MT.Yellow, "[DEBUG] check_loan_status_on_zone called. Amount: " .. tostring(eq.get_data(tostring(client:CharacterID()) .. "_AC_loan")))
+	-- client:Message(MT.Yellow, "[DEBUG] check_loan_status_on_zone called. Amount: " .. tostring(eq.get_data(tostring(client:CharacterID()) .. "_AC_loan")))
 	-- These must match the bucket keys in 500002.lua
 	local client_id = tostring(client:CharacterID())
 	local keys = get_loan_bucket_keys(client_id)
@@ -56,9 +56,9 @@ local function check_loan_status_on_zone(client)
 				client:Message(MT.Red, "Your debt is catastrophically overdue! " .. overdue_periods .. "x the loan duration! Beware!")
 				-- Faction penalty: Lenders Guild (ID 500000)
 				local FACTION_ID = config_loans.FACTION_ID
-				local FACTION_HIT = -1000 -- Large enough to make KOS
 				client:Message(MT.Red, "Your standing with the Lenders Guild has plummeted!")
-				client:Faction(FACTION_ID, FACTION_HIT)
+				local delta = -1000 - client:GetCharacterFactionLevel(FACTION_ID)
+				client:Faction(FACTION_ID, delta)
 				-- Global shame message
 				eq.world_emote(14, "Zork says, " .. client:GetName() .. " is a scoundrel! I loaned him " .. amount .. " " .. currency_name .. " and he has not paid it back. Time to summon my minions!")
 				-- Random chance to spawn super mob
