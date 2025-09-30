@@ -3,19 +3,23 @@
 # Modified to use Mark of Age currency system
 # Teleport Locations Array
 my @teleport_locations = (
-    {
-        name => 'Plane of Knowledge', zoneid => 202, x => 0, y => 0, z => 0, heading => 0, min_level => 1, required_flag => 0, price => 100000
-    },
-    {
-        name => 'Bazaar', zoneid => 151, x => -75, y => 0, z => 0, heading => 0, min_level => 1, required_flag => 0, price => 1
-    },
-    {
-        name => 'Anguish', zoneid => 317, x => 0, y => 0, z => 0, heading => 0, min_level => 1, required_flag => 5, price => 1
-    },
-    {
-        name => 'The Buried Sea', zoneid => 423, x => 0, y => 0, z => 0, heading => 0, min_level => 1, required_flag => 7, price => 1
-    },
-    # Add more locations as needed
+    { name => 'Grobb', zoneid => 46, x => -332.24, y => -2594.79, z => -11.57, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Qeynos', zoneid => 2, x => 162.58, y => 478.56, z => 3.85, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Freeport', zoneid => 9, x => 143.17, y => 3.73, z => -24.15, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Surfall', zoneid => 4, x => 225.29, y => 5044.50, z => -3.71, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Kelethin', zoneid => 54, x => 184.38, y => 157.30, z => 3.62, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Halas', zoneid => 30, x => 670.34, y => 3629.16, z => 3.85, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Erudin', zoneid => 38, x => 249.97, y => 2325.90, z => -44.79, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Paineel', zoneid => 75, x => 189.59, y => 777.19, z => 2.77, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Felwithe', zoneid => 54, x => -2326.97, y => -2030.23, z => 29.43, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Nektulos', zoneid => 25, x => -912.41, y => 1759.92, z => 26.76, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Kelethin', zoneid => 68, x => -209.97, y => 2802.55, z => 2.75, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => "Ak'Anon", zoneid => 56, x => 504.85, y => -1757.54, z => -108.05, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Rivervale', zoneid => 33, x => -2318.06, y => 541.91, z => -4.43, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Oggok', zoneid => 47, x => 917.83, y => 1385.55, z => 51.68, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Cabalis', zoneid => 78, x => 3210.64, y => -2506.42, z => 7.95, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Rathe Mountains', zoneid => 50, x => 386.21, y => -1125.46, z => 1.13, heading => 0, min_level => 1, required_flag => 0, price => 10 },
+    { name => 'Shadeweavers Thicket', zoneid => 165, x => -3323.58, y => -2110.32, z => -108.48, heading => 0, min_level => 1, required_flag => 0, price => 10 },
 );
 
 # Currency Configuration
@@ -135,7 +139,6 @@ sub EVENT_SAY {
             $client->Message(0, "Abraxxus tells you: Hello $name. I cannot sense any resilience within you, you must prove your worth. Speak with Zork to find out how. However, I can offer you some free " . quest::saylink("buffs", 1) . ".");
         } else {
             $client->Message(0, "Abraxxus tells you: Greetings $name. I can provide some basic services such as " . quest::saylink("Buffs", 1) . " and " . quest::saylink("Teleportation", 1) . ". However, they will cost you.");
-
         }
     } elsif ($text=~/Buffs/i) {
         ShowBuffMenu($client);
