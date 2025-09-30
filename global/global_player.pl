@@ -56,17 +56,38 @@ sub check_loan_status_on_zone {
                 my $FACTION_ID = $config_loans->{FACTION_ID};
                 $client->Message(13, "Your standing with the Lenders Guild has plummeted!");
                 plugin::SetFactionStatic($client, $FACTION_ID, -1000);
-                if (rand() < $SUPER_MOB_CHANCE) {
+                
+                # SUPER MOB SPAWN CHECK ==================================================
+                if (rand() < $SUPER_MOB_CHANCE) {   # SPAWN SUPERMOB
                     my $x = $client->GetX();
                     my $y = $client->GetY();
                     my $z = $client->GetZ();
                     quest::we(335, "Zork says, " . $client->GetName() . " is a scoundrel! I loaned him $amount $currency_name and he has not paid it back. Time to summon my minions!");
 
-                    quest::spawn2($SUPER_MOB_NPC_ID, 0, 0, $x + 2, $y + 2, $z, 0);
-                    $client->Message(0, "A debt collector has arrived to collect what you owe!");
-                } else {
+                    # Check to see if there is a graceperiod
+                    my $grace_key = sprintf($config_loans->{BUCKET_KEYS}->{grace_period}, $client_id);
+                    my $now = time();
+                    my $grace_expire = $client->GetBucket($grace_key) || 0;
+                    if ($now < $grace_expire) { # CHECK KILL GRACE PERIOD
+                        # IN GRACE PERIOD - DO NOT SPAWN
+                        $client->Message(15, "Zork's minions are searching for you again!");
+                        #quest::debug("SPAWN CHANCE TRUE - IN GRACE PERIOD - NOT SPAWNING");
+                        #return;
+                    } else {
+                        # NOT IN GRACE PERIOD - SPAWN SUPERMOB
+                        $client->Message(0, "A debt collector has arrived to collect what you owe!");
+                        #quest::debug("SPAWN CHANCE TRUE - NOT IN GRACE PERIOD - SPAWNING");
+                        quest::spawn2($SUPER_MOB_NPC_ID, 0, 0, $x + 2, $y + 2, $z, 0);
+                        my $grace_period = $config_loans->{SUPER_MOB_GRACE_PERIOD_MINUTES} * 60;
+                        $client->SetBucket($grace_key, $now + $grace_period);
+                    }
+
+                } else { # DO NOT SPAWN SUPERMOB
                     $client->Message(15, "Zork's Minions are close on your trail!");
+                    #quest::debug("SPAWN CHANCE FALSE - NOT SPAWNING");
                 }
+                # END SUPERMOB SPAWN CHECK ==================================================
+
             } elsif ($overdue_periods >= 5) {
                 $client->Message(13, "Your debt is EXTREMELY overdue! 5x the loan duration! Severe penalties may occur.");
             } elsif ($overdue_periods >= 2) {

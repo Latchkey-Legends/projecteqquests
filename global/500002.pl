@@ -257,7 +257,7 @@ sub EVENT_SAY {
     my $client_id = $client ? $client->CharacterID() : undef;
     my $FACTION_ID = 500000;
     my $faction_level = $client ? $client->GetCharacterFactionLevel($FACTION_ID) : 0;
-    $client->Message(15, "DEBUG: Your current faction with the Lenders Guild is: $faction_level");
+    #$client->Message(15, "DEBUG: Your current faction with the Lenders Guild is: $faction_level");
     if ($text =~ /Hail/i) {
         my $state = get_loan_state($client, $client_id);
         my $payback_link = quest::saylink('payback_loan', 0, 'Payback Loan');
