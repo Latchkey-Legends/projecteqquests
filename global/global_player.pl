@@ -90,7 +90,7 @@ sub EVENT_ENTERZONE {
 
 sub EVENT_CONNECT {
     init_player_buckets($client);
-    grant_veteran_aa($client);
+    #grant_veteran_aa($client);
     #don::fix_invalid_faction_state($client);
     #level_tracking::init_tracking($client);
 }
