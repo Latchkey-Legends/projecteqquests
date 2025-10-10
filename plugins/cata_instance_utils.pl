@@ -17,9 +17,9 @@ sub OfferStandardInstance {
 		$client->UpdateTaskActivity(4, 4, 1);
 	}
 
-	if (plugin::IsSeasonal($client) || plugin::MultiClassingEnabled()) {
-		$max_players = 6;
-	}
+	# if (plugin::IsSeasonal($client) || plugin::MultiClassingEnabled()) {
+	# 	$max_players = 6;
+	# }
 
 	if ($text =~ /hail/i) {
 		my $dz = $client->GetExpedition();
@@ -74,20 +74,18 @@ sub OfferStandardInstance {
 	}
 	elsif ($text =~ /ready/i) {
 		my $dz = $client->GetExpedition();
-		if (
-			$dz &&
-			(
+		if ($dz && (
 				$dz->GetName() eq "$expedition_name (Respawning)" ||
 				$dz->GetName() eq "$expedition_name (Non-Respawning)"
-			)
-		) {
+				)) {
 			# Fallback to safe zone coordinates if x, y, z, or heading are not defined
 			my $final_x = defined $x ? $x : quest::GetZoneSafeX($dz->GetZoneID());
 			my $final_y = defined $y ? $y : quest::GetZoneSafeY($dz->GetZoneID());
 			my $final_z = defined $z ? $z : quest::GetZoneSafeZ($dz->GetZoneID());
 			my $final_heading = defined $heading ? $heading : quest::GetZoneSafeHeading($dz->GetZoneID());
 
-			$client->MovePCInstance($dz->GetZoneID(), $dz->GetInstanceID(), $final_x, $final_y, $final_z, $final_heading);
+			quest::debug("Teleporting to instance $dz_zone, version $dz_version, instance " . $dz->GetInstanceID() . " at $final_x, $final_y, $final_z, $final_heading");
+			#$client->MovePCInstance($dz->GetZoneID(), $dz->GetInstanceID(), $final_x, $final_y, $final_z, $final_heading);
 		}
 	}	
 }
