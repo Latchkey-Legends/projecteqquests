@@ -108,9 +108,35 @@ sub EVENT_ENTERZONE {
     check_loan_status_on_zone($client);
 }
 
+sub EVENT_TASK_COMPLETE {
+    my ($task_id) = @_;
+    # Your logic here
+    if ($task_id == 550006) {
+        $client->Message(15, "Congratulations on completing your starting quest! You have taken your first step into the world of Norrath. Explore, adventure, and enjoy your journey!");
+        $client->SetBucket("starting_quest", "1"); # Mark starting quest as completed
+    }
+}
+
+sub check_starting_quest_status {
+    my ($client) = @_;
+    return unless $client;
+    my $starting_quest = $client->GetBucket("starting_quest");
+    if (defined $starting_quest && $starting_quest eq "0") {
+        # $client->Message(0, "Welcome to the world of Norrath! To get started, please visit the Newbie Guide in your starting city for helpful tips and information.");
+        # quest::assigntask(550006);
+        quest::popup("Latchkey Legends",
+            "Welcome to the Latchkey Legends! You have been given a new quest:
+            <br><br><c \"#FFFF00\">Latchkey Legends Orientation:</c><br>You can find your quests by clicking on the EQ button, then Quests,
+            and then Quest Journal<br><br><c \"#F07F00\">Click 'OK' to continue.</c>");
+        quest::assigntask(550006);
+        $client->SetBucket("starting_quest", "1"); # Mark starting quest as assigned
+    }
+}
+
 
 sub EVENT_CONNECT {
     init_player_buckets($client);
+    check_starting_quest_status($client);
     #grant_veteran_aa($client);
     #don::fix_invalid_faction_state($client);
     #level_tracking::init_tracking($client);
@@ -121,11 +147,34 @@ sub init_player_buckets {
     # Initialize player buckets for IP and unboxed status
     my ($client) = @_;
     return unless $client;
+
+    # Store IP address as a number
     my $ip_num = $client->GetIP();
     $client->SetBucket("ipaddress", $ip_num);
+
+    # Initialize unboxed status
     my $unboxed_val = $client->GetBucket("unboxed");
     if (!defined $unboxed_val || $unboxed_val eq "") {
         $client->SetBucket("unboxed", "0");
+    }
+
+    # Initialize starting quest
+    # Starting quest values: 0 = not assigned, 1 = assigned
+    my $starting_quest = $client->GetBucket("starting_quest");
+    if (!defined $starting_quest || $starting_quest eq "") {
+        $client->SetBucket("starting_quest", "0");
+    }
+
+    # Initialize Hub Teleport attunement location
+    my $hubx = $client->GetBucket("hub_x");
+    my $huby = $client->GetBucket("hub_y");
+    my $hubz = $client->GetBucket("hub_z");
+    my $hubzone = $client->GetBucket("hub_zone");
+    if (!defined $hubx || $hubx eq "" || !defined $huby || $huby eq "" || !defined $hubz || $hubz eq "" || !defined $hubzone || $hubzone eq "") {
+        $client->SetBucket("hub_x", "-195");
+        $client->SetBucket("hub_y", "-1574");
+        $client->SetBucket("hub_z", "-3.75");
+        $client->SetBucket("hub_zone", "22");
     }
 }
 
